@@ -107,3 +107,7 @@ No YAML configuration is needed or supported.
    restart Home Assistant if you don't plan to reinstall it. If installed via
    HACS, remove it from **HACS → Integrations** instead, which deletes the
    folder for you.
+
+## License
+
+[MIT](LICENSE)
