@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "SMA Sunny Tripower",
+        "description": "Configure the Modbus TCP connection to your SMA Sunny Tripower inverter.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "unit_id": "Modbus Unit ID",
+          "device_name": "Device name"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure SMA Sunny Tripower",
+        "description": "Update the Modbus TCP connection details for this inverter.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "unit_id": "Modbus Unit ID",
+          "device_name": "Device name"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the inverter. Check the host, port and unit ID.",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This inverter is already configured",
+      "reconfigure_successful": "Reconfiguration was successful"
+    }
+  }
+}
