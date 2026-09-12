@@ -117,6 +117,76 @@ async def test_write_raises_on_error_response(coordinator):
         await coordinator.async_set_active_power_limit_percent(20)
 
 
+async def test_no_grid_guard_write_on_first_time_success(coordinator):
+    """The Grid Guard code must not be sent when the write succeeds on the
+    first try, so the common case pays no extra round trip."""
+    coordinator.grid_guard_code = "123456"
+    coordinator.client.write_registers.return_value = FakeModbusResponse()
+    coordinator.client.read_holding_registers.return_value = FakeModbusResponse([0, 20])
+
+    await coordinator.async_set_active_power_limit_percent(20)
+
+    coordinator.client.write_registers.assert_awaited_once_with(40214, [0, 20], slave=3)
+
+
+async def test_grid_guard_login_and_retry_on_rejected_write(coordinator):
+    """When the first write is rejected (e.g. ILLEGAL FUNCTION because Grid
+    Guard is locked) and a code is configured, the coordinator must unlock
+    Grid Guard and retry the write once before giving up."""
+    coordinator.grid_guard_code = "123456"
+    coordinator.client.write_registers.side_effect = [
+        FakeModbusResponse(error=True),  # first write to 40214 rejected
+        FakeModbusResponse(),  # grid guard login to 43090 succeeds
+        FakeModbusResponse(),  # retried write to 40214 succeeds
+    ]
+    coordinator.client.read_holding_registers.return_value = FakeModbusResponse([0, 20])
+
+    with patch(
+        "custom_components.sma_power_control.coordinator.asyncio.sleep",
+        new_callable=AsyncMock,
+    ):
+        await coordinator.async_set_active_power_limit_percent(20)
+
+    assert coordinator.client.write_registers.await_args_list[0].args == (
+        40214,
+        [0, 20],
+    )
+    assert coordinator.client.write_registers.await_args_list[1].args == (
+        43090,
+        [0, 123456],
+    )
+    assert coordinator.client.write_registers.await_args_list[2].args == (
+        40214,
+        [0, 20],
+    )
+    assert coordinator.data[KEY_ACTIVE_POWER_LIMIT_PERCENT] == 20
+
+
+async def test_no_retry_when_grid_guard_code_not_configured(coordinator):
+    coordinator.client.write_registers.return_value = FakeModbusResponse(error=True)
+
+    with pytest.raises(UpdateFailed):
+        await coordinator.async_set_active_power_limit_percent(20)
+
+    coordinator.client.write_registers.assert_awaited_once_with(40214, [0, 20], slave=3)
+
+
+async def test_raises_when_retry_after_grid_guard_login_still_fails(coordinator):
+    coordinator.grid_guard_code = "123456"
+    coordinator.client.write_registers.side_effect = [
+        FakeModbusResponse(error=True),  # first write rejected
+        FakeModbusResponse(),  # grid guard login succeeds
+        FakeModbusResponse(error=True),  # retried write still rejected
+    ]
+
+    with patch(
+        "custom_components.sma_power_control.coordinator.asyncio.sleep",
+        new_callable=AsyncMock,
+    ):
+        with pytest.raises(UpdateFailed):
+            await coordinator.async_set_active_power_limit_percent(20)
+
+
 async def test_ensure_connected_reconnects_when_disconnected(hass):
     coord = SmaModbusCoordinator(hass, "192.0.2.10", 502, 3)
     coord.client = AsyncMock()

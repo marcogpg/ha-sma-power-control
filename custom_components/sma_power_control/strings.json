@@ -8,7 +8,8 @@
           "host": "Host",
           "port": "Port",
           "unit_id": "Modbus Unit ID",
-          "device_name": "Device name"
+          "device_name": "Device name",
+          "grid_guard_code": "Grid Guard code (optional)"
         }
       },
       "reconfigure": {
@@ -18,7 +19,8 @@
           "host": "Host",
           "port": "Port",
           "unit_id": "Modbus Unit ID",
-          "device_name": "Device name"
+          "device_name": "Device name",
+          "grid_guard_code": "Grid Guard code (optional)"
         }
       }
     },

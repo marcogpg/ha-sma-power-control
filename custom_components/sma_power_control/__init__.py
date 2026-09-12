@@ -7,7 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_UNIT_ID, DOMAIN
+from .const import CONF_GRID_GUARD_CODE, CONF_UNIT_ID, DOMAIN
 from .coordinator import SmaModbusCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,8 +20,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     host = entry.data[CONF_HOST]
     port = entry.data[CONF_PORT]
     unit_id = entry.data[CONF_UNIT_ID]
+    grid_guard_code = entry.data.get(CONF_GRID_GUARD_CODE) or None
 
-    coordinator = SmaModbusCoordinator(hass, host, port, unit_id)
+    coordinator = SmaModbusCoordinator(hass, host, port, unit_id, grid_guard_code)
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator

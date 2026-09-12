@@ -40,6 +40,23 @@ registers are touched.
   - `1079` → External active power setpoint
 - **40214** – Active power limitation in % (U32, range 0–100). Only takes
   effect when `40210 = 1078`.
+- **43090** – Grid Guard code (U32), per SMA's official Modbus Technical
+  Information. Some inverters/firmwares reject writes to `40210`/`40214`
+  with a Modbus exception (`ILLEGAL FUNCTION`) unless the Grid Guard code is
+  unlocked first by writing it here; writing `0` logs out. If your
+  inverter's web UI tells you a Grid Guard code is required to change the
+  active power limit, enter it in the integration's configuration (optional
+  field). It is only sent when a write to `40210` or `40214` is rejected:
+  the integration then unlocks Grid Guard, waits briefly (the inverter needs
+  a moment before it accepts the next write), and retries that write once
+  before giving up.
+
+  **Note:** Grid Guard login is tied to the client IP address, and only one
+  client can be logged in with the code at a time. If you're also logged
+  into the inverter's web portal or Sunny Explorer with Grid Guard active
+  from another device, it can conflict with the login attempted by this
+  integration. Avoid keeping a Grid Guard session open elsewhere while this
+  integration is in use.
 
 Modbus U32 values are transmitted as two 16-bit registers, **high word
 first**: e.g. `20 → [0, 20]`, `1078 → [0, 1078]`, `4000 → [0, 4000]`.

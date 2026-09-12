@@ -10,9 +10,15 @@ from pymodbus.client import AsyncModbusTcpClient
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
 from .const import (
     CONF_DEVICE_NAME,
+    CONF_GRID_GUARD_CODE,
     CONF_UNIT_ID,
     DEFAULT_NAME,
     DEFAULT_PORT,
@@ -37,6 +43,9 @@ def _build_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Optional(
                 CONF_DEVICE_NAME, default=defaults.get(CONF_DEVICE_NAME, DEFAULT_NAME)
             ): str,
+            vol.Optional(
+                CONF_GRID_GUARD_CODE, default=defaults.get(CONF_GRID_GUARD_CODE, "")
+            ): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
         }
     )
 

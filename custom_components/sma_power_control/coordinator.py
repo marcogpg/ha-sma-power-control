@@ -19,10 +19,12 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import (
     ACTIVE_POWER_LIMIT_PERCENT_OFFSET,
     DOMAIN,
+    GRID_GUARD_RETRY_DELAY_SECONDS,
     OPERATING_BLOCK_COUNT,
     OPERATING_BLOCK_START,
     OPERATING_MODE_OFFSET,
     REG_ACTIVE_POWER_LIMIT_PERCENT,
+    REG_GRID_GUARD_CODE,
     REG_OPERATING_MODE,
     UPDATE_INTERVAL_SECONDS,
 )
@@ -37,7 +39,14 @@ KEY_ACTIVE_POWER_LIMIT_PERCENT = "active_power_limit_percent"
 class SmaModbusCoordinator(DataUpdateCoordinator[dict[str, int | None]]):
     """Coordinate Modbus TCP communication with the SMA inverter."""
 
-    def __init__(self, hass: HomeAssistant, host: str, port: int, unit_id: int) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        host: str,
+        port: int,
+        unit_id: int,
+        grid_guard_code: str | None = None,
+    ) -> None:
         super().__init__(
             hass,
             _LOGGER,
@@ -47,6 +56,7 @@ class SmaModbusCoordinator(DataUpdateCoordinator[dict[str, int | None]]):
         self.host = host
         self.port = port
         self.unit_id = unit_id
+        self.grid_guard_code = grid_guard_code
         self.client = AsyncModbusTcpClient(host, port=port)
         self._lock = asyncio.Lock()
 
@@ -109,10 +119,38 @@ class SmaModbusCoordinator(DataUpdateCoordinator[dict[str, int | None]]):
         )
         return operating_mode, active_power_limit_percent
 
+    async def _async_grid_guard_login(self) -> None:
+        """Unlock Grid Guard protected parameters.
+
+        Called by _async_write_u32 only after a write has been rejected, not
+        before every write: some inverters reject writes to operating mode /
+        active power limit with a Modbus exception (ILLEGAL FUNCTION) unless
+        Grid Guard is unlocked first.
+        """
+        if not self.grid_guard_code:
+            return
+        registers = encode_u32(int(self.grid_guard_code))
+        result = await self._write_registers(REG_GRID_GUARD_CODE, registers)
+        if result is None or result.isError():
+            raise UpdateFailed(
+                f"Error unlocking Grid Guard at register {REG_GRID_GUARD_CODE}: {result}"
+            )
+
     async def _async_write_u32(self, address: int, value: int) -> int | None:
-        """Write a U32 value and read it back to confirm the value actually applied."""
+        """Write a U32 value and read it back to confirm the value actually applied.
+
+        If the write is rejected and a Grid Guard code is configured, unlock
+        Grid Guard and retry the write once before giving up: some inverters
+        reject writes to protected registers (operating mode, active power
+        limit) until Grid Guard is unlocked, and the unlock can expire, so we
+        only pay for the extra round trip when a write actually fails.
+        """
         registers = encode_u32(value)
         result = await self._write_registers(address, registers)
+        if (result is None or result.isError()) and self.grid_guard_code:
+            await self._async_grid_guard_login()
+            await asyncio.sleep(GRID_GUARD_RETRY_DELAY_SECONDS)
+            result = await self._write_registers(address, registers)
         if result is None or result.isError():
             raise UpdateFailed(f"Error writing register {address}: {result}")
         return await self._async_read_u32(address)
